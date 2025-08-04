@@ -106,10 +106,16 @@ def transform_data_59(uploaded_file59, transformed_phone59_path):
         df = df[~df["CALL TYPE"].astype(str).str.strip().str.lower().eq("manual")]
 
     # Convert DATE to datetime and extract date
-    df["DATE"] = pd.to_datetime(df["DATE"], errors='coerce').dt.date
+    if "DATE" in df.columns:
+        df["DATE"] = pd.to_datetime(df["DATE"], errors='coerce').dt.date
+    else:
+        raise ValueError("The input file does not contain a 'DATE' column.")
 
     # Convert HOUR from "HH:MM" to integer hour
-    df["HOUR"] = df["HOUR"].astype(str).str.split(':').str[0].astype(int, errors='ignore')
+    if "HOUR" in df.columns:
+        df["HOUR"] = df["HOUR"].astype(str).str.split(':').str[0].astype(int, errors='ignore')
+    else:
+        raise ValueError("The input file does not contain a 'HOUR' column.")
 
     # Drop rows with invalid or missing hours
     df = df[df["HOUR"].between(0, 23)]
@@ -139,9 +145,11 @@ def transform_data_59(uploaded_file59, transformed_phone59_path):
     # Reorder columns
     pivot = pivot[sorted(pivot.columns)]
 
+    # Rename index to "Date" (since DATE is the index after pivot)
+    pivot.index.name = "Date"
+
     # Rename columns as strings
     pivot.columns = [str(col) for col in pivot.columns]
-    pivot.rename(columns={"DATE": "Date"}, inplace=True)
 
     # Save to Excel
     pivot.reset_index().to_excel(str(transformed_phone59_path), index=False)

@@ -187,11 +187,11 @@ if st.session_state.show_shift_summary or st.session_state.show_hourly_distribut
 
         if st.session_state.show_shift_summary:
             st.subheader("🔹 Shift Level Summary")
-            st.dataframe(summary_df)
+            st.dataframe(summary_df.reset_index(drop=True), hide_index=True)  # Hide index
 
         if st.session_state.show_hourly_distribution:
             st.subheader("🔸 Final Hourly Distribution")
-            st.dataframe(hourly_df)
+            st.dataframe(hourly_df.reset_index(drop=True), hide_index=True)  # Hide index
 
     except Exception as e:
         st.error(f"❌ Failed to generate shift plan from file: {e}")

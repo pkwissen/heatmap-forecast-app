@@ -95,7 +95,7 @@ def generate_hourly_distribution(shift_plan_df):
     shift_df["start"] = shift_df["start"].apply(normalize)
     shift_df["end"] = shift_df["end"].apply(normalize)
 
-    hours = list(range(6, 32))  # covers 6 AM to 7 AM next day
+    hours = list(range(6, 30))  # covers 6 AM to 7 AM next day
     hour_table = []
 
     for hour in hours:
