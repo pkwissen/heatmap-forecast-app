@@ -109,20 +109,34 @@ else:
     st.info("ℹ️ Please select whether you want to upload new raw data or not.")
     st.stop()
 
-# Forecast Period Selection
+# --- Forecast Period Selection ---
 st.markdown("### Select Forecasting Period")
 
 latest_data_date = xls.parse("Chat")["Date"].max().date()
+earliest_data_date = xls.parse("Chat")["Date"].min().date()
 today = pd.Timestamp.today().date()
 
-# Start from tomorrow based on latest of either data or today's date
-min_start = max(latest_data_date + pd.Timedelta(days=1), today)
-default_start = min_start
-default_end = default_start + pd.Timedelta(days=7)
+future_limit = today + pd.Timedelta(days=120)
 
-start_date = st.date_input("Start Date", value=default_start, min_value=min_start)
-end_date = st.date_input("End Date", value=default_end, min_value=start_date)
+# Allow selection from earliest data or today, whichever is earlier
+min_selectable = min(earliest_data_date, today)
+max_selectable = max(latest_data_date, future_limit)
 
+default_start = max(min_selectable, today)  # Default to today if earliest is in the past
+default_end = min(default_start + pd.Timedelta(days=7), max_selectable)
+
+start_date = st.date_input(
+    "Start Date",
+    value=default_start,
+    min_value=min_selectable,
+    max_value=max_selectable
+)
+end_date = st.date_input(
+    "End Date",
+    value=default_end,
+    min_value=start_date,
+    max_value=max_selectable
+)
 
 tasks_per_resource = {"Chat": 13, "Phone": 13, "Phone59": 13, "Self-service": 15}
 
