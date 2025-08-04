@@ -71,8 +71,8 @@ if use_new_data == "Yes":
     if uploaded_file1:
         try:
             st.success("✅ File uploaded successfully from Service Now!")
-            raw_df = data_handler.transform_new_data(uploaded_file1)
-            processed_df = data_handler.merge_with_existing(transformed_path)
+            raw_df = data_handler.transform_new_data(uploaded_file1, TRANSFORMED_PATH)
+            processed_df = data_handler.merge_with_existing(transformed_path, processed_path)
             xls = pd.ExcelFile(processed_path)
         except Exception as e:
             st.error(f"❌ Error processing Service Now file: {e}")
