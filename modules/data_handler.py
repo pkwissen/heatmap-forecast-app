@@ -13,6 +13,11 @@ def map_hour_to_slot(hour):
     return ((hour - 6) % 24) + 1
 
 def transform_data(df, output_path):
+    if 'Created' in df.columns:
+        df.rename(columns={'Created': 'sys_created_on'}, inplace=True)
+    if 'Contact type' not in df.columns:
+        df.rename(columns={'Contact type': 'task.contact_type'}, inplace=True)
+
     df['Date'] = pd.to_datetime(df['sys_created_on']).dt.date
     df['Hour'] = pd.to_datetime(df['sys_created_on']).dt.hour
     df['Slot'] = df['Hour'].apply(map_hour_to_slot)
