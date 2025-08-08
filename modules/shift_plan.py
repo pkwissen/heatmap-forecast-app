@@ -70,7 +70,7 @@ def compute_shift_plan(forecast_df):
             "end": shift_hours[-1] + 1  # end is exclusive in time blocks
         }
         total_resource = 0
-        for channel in ["Chat", "Phone59", "Self-service"]:
+        for channel in ["Chat", "Phone", "Phone59", "Self-service"]:
             total_tasks = shift_data[channel].sum()
             est_by_tasks = total_tasks / TASKS_PER_DAY[channel]
             est_by_minutes = (total_tasks * TASK_DURATION[channel]) / MINUTES_PER_ANALYST
@@ -139,6 +139,7 @@ def generate_hourly_distribution(shift_plan_df):
 
     df_result = pd.DataFrame(hour_table)
     df_result = df_result[["Hour", "Teams"] + list(shift_df["shift"]) + ["total resources"]]
+    df_result = df_result.rename(columns=SHIFT_TIME_LABELS)
     return df_result
 
 def main_pipeline(

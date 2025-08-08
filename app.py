@@ -42,6 +42,35 @@ if getattr(sys, 'frozen', False):
 st.set_page_config(page_title="Ticket Volume Heat Map", layout="wide")
 st.title("Ticket Volume Heat Map")
 
+# --- Option Selection ---
+st.markdown("### Select Option to Create Heatmap")
+heatmap_option = st.selectbox(
+    "Choose from the options below:",
+    options=[
+        "Select option from below to create heatmap",
+        "Service Now",
+        "Service Now - Five9 together"
+    ],
+    index=0
+)
+
+if heatmap_option == "Select option from below to create heatmap":
+    st.info("ℹ️ Please select a valid option to proceed.")
+    st.stop()
+
+# --- Ask for data upload ---
+use_new_data = st.radio(
+    "Do you want to upload new raw data?",
+    options=["Select...", "Yes", "No"],
+    index=0
+)
+
+uploaded_file1 = uploaded_file2 = processed_df = xls = None
+
+if use_new_data == "Select...":
+    st.info("ℹ️ Please select Yes or No to continue.")
+    st.stop()
+
 # Session state setup
 if 'forecast' not in st.session_state:
     st.session_state['forecast'] = None
@@ -56,18 +85,11 @@ if "show_hourly_distribution" not in st.session_state:
 processed_path = PROCESSED_PATH
 transformed_path = TRANSFORMED_PATH
 
-# Upload or load data
-use_new_data = st.radio(
-    "Do you want to upload new raw data?",
-    options=["Select...", "Yes", "No"],
-    index=0
-)
-
-uploaded_file1 = uploaded_file2 = processed_df = xls = None
+# ------------- Handle Uploads Based on Option Selected ---------------
 
 if use_new_data == "Yes":
+    # Always ask for Service Now data
     uploaded_file1 = st.file_uploader("Upload new raw data from Service Now (.xlsx)", type=["xlsx"])
-
     if uploaded_file1:
         try:
             st.success("✅ File uploaded successfully from Service Now!")
@@ -81,20 +103,21 @@ if use_new_data == "Yes":
         st.warning("⚠️ Please upload Service Now file to continue.")
         st.stop()
 
-    uploaded_file2 = st.file_uploader("Upload new raw data from Five9 (.csv)", type=["csv"])
-
-    if uploaded_file2:
-        try:
-            st.success("✅ File uploaded successfully from Five9!")
-            raw_df = data_handler.transform_data_59(uploaded_file2, TRANSFORMED_PHONE59_PATH)
-            processed_df = data_handler.add_transformed_phone59_sheet(PROCESSED_PATH, TRANSFORMED_PHONE59_PATH, sheet_name="Phone59")
-            xls = pd.ExcelFile(processed_path)
-        except Exception as e:
-            st.error(f"❌ Error processing Five9 file: {e}")
+    # Only if both are selected, ask for Five9 file
+    if heatmap_option == "Service Now - Five9 together":
+        uploaded_file2 = st.file_uploader("Upload new raw data from Five9 (.csv)", type=["csv"])
+        if uploaded_file2:
+            try:
+                st.success("✅ File uploaded successfully from Five9!")
+                raw_df = data_handler.transform_data_59(uploaded_file2, TRANSFORMED_PHONE59_PATH)
+                processed_df = data_handler.add_transformed_phone59_sheet(PROCESSED_PATH, TRANSFORMED_PHONE59_PATH, sheet_name="Phone59")
+                xls = pd.ExcelFile(processed_path)
+            except Exception as e:
+                st.error(f"❌ Error processing Five9 file: {e}")
+                st.stop()
+        else:
+            st.warning("⚠️ Please upload Five9 file to continue.")
             st.stop()
-    else:
-        st.warning("⚠️ Please upload Five9 file to continue.")
-        st.stop()
 
 elif use_new_data == "No":
     if not processed_path.exists():
@@ -105,9 +128,6 @@ elif use_new_data == "No":
     except Exception as e:
         st.error(f"❌ Failed to load processed file: {e}")
         st.stop()
-else:
-    st.info("ℹ️ Please select whether you want to upload new raw data or not.")
-    st.stop()
 
 # --- Forecast Period Selection ---
 st.markdown("### Select Forecasting Period")
@@ -115,14 +135,12 @@ st.markdown("### Select Forecasting Period")
 latest_data_date = xls.parse("Chat")["Date"].max().date()
 earliest_data_date = xls.parse("Chat")["Date"].min().date()
 today = pd.Timestamp.today().date()
-
 future_limit = today + pd.Timedelta(days=120)
 
-# Allow selection from earliest data or today, whichever is earlier
 min_selectable = min(earliest_data_date, today)
 max_selectable = max(latest_data_date, future_limit)
 
-default_start = max(min_selectable, today)  # Default to today if earliest is in the past
+default_start = max(min_selectable, today)
 default_end = min(default_start + pd.Timedelta(days=7), max_selectable)
 
 start_date = st.date_input(
@@ -150,9 +168,16 @@ if run_forecast:
     progress = st.progress(0, text="🚀 Starting forecasting...")
 
     forecast_dfs = []
-    channels = ["Chat", "Phone", "Phone59", "Self-service"]
+
+    # Set channels dynamically based on selected heatmap option
+    if heatmap_option == "Service Now":
+        channels = ["Chat", "Phone", "Self-service"]
+    elif heatmap_option == "Service Now - Five9 together":
+        channels = ["Chat", "Phone59", "Self-service"]
+
+
     for i, channel in enumerate(channels):
-        progress.progress((i + 1) * 20, text=f"⏳ Forecasting {channel}...")
+        progress.progress(int((i + 1) / len(channels) * 80), text=f"⏳ Forecasting {channel}...")
         df = forecaster.run_forecasting(xls.parse(channel), start_dt, end_dt)
         df["Channel"] = channel
         forecast_dfs.append(df)
@@ -164,12 +189,13 @@ if run_forecast:
     shift_plans = planner.generate_shift_plan(full_forecast, tasks_per_resource=tasks_per_resource)
     st.session_state['plans'] = shift_plans
     progress.progress(100, text="✅ All done!")
-    planner.apply_coloring_and_download(shift_plans, start_date, end_date, backup_path=FORECAST_DATA_PATH)
+    planner.apply_coloring_and_download(shift_plans, start_date, end_date, backup_path=FORECAST_DATA_PATH, heatmap_option=heatmap_option)
+
 
 # Show saved heatmap if available
 if st.session_state['plans'] is not None and not run_forecast:
     st.markdown("### Showing Heat Map")
-    planner.apply_coloring_and_download(st.session_state['plans'], start_date, end_date)
+    planner.apply_coloring_and_download(st.session_state['plans'], start_date, end_date, heatmap_option=heatmap_option)
 
 # Shift Planning Views
 st.markdown("---")
@@ -180,18 +206,40 @@ if st.button("📊 Show Shift Level Summary", use_container_width=True):
 if st.button("🕐 Show Final Hourly Distribution", use_container_width=True):
     st.session_state.show_hourly_distribution = True
 
-if st.session_state.show_shift_summary or st.session_state.show_hourly_distribution:
+if st.session_state.show_shift_summary or st.session_state.show_hourly_distribution: 
     shift_file_path = FORECAST_DATA_PATH
     try:
         summary_df, hourly_df = shift_plan.main_pipeline(shift_file_path)
 
+        # Determine which channels to show based on heatmap_option
+        if heatmap_option == "Service Now":
+            channels = ["Chat", "Phone", "Self-service"]
+        elif heatmap_option == "Service Now - Five9 together":
+            channels = ["Chat", "Phone59", "Self-service"]
+        else:
+            channels = []  # default to empty if no match
+
         if st.session_state.show_shift_summary:
             st.subheader("🔹 Shift Level Summary")
-            st.dataframe(summary_df.reset_index(drop=True), hide_index=True)  # Hide index
+            # ❌ Drop Shift, Start, End columns before showing
+            filtered_summary_df = summary_df.drop(columns=["shift", "start", "end"], errors='ignore')
+
+            if heatmap_option == "Service Now":
+                filtered_summary_df = filtered_summary_df.drop(columns=["shift", "start", "end", "Phone59"], errors='ignore')
+            elif heatmap_option == "Service Now - Five9 together":
+                filtered_summary_df = filtered_summary_df.drop(columns=["shift", "start", "end", "Phone"], errors='ignore')
+            else:
+                channels = []  # default to empty if no match
+
+
+            st.dataframe(filtered_summary_df.reset_index(drop=True), hide_index=True)
 
         if st.session_state.show_hourly_distribution:
             st.subheader("🔸 Final Hourly Distribution")
-            st.dataframe(hourly_df.reset_index(drop=True), hide_index=True)  # Hide index
+            # ✅ Filter hourly_df as well to show relevant channels
+            filtered_hourly_df = hourly_df[[col for col in channels if col in hourly_df.columns]]
+            st.dataframe(hourly_df.reset_index(drop=True), hide_index=True)
 
     except Exception as e:
         st.error(f"❌ Failed to generate shift plan from file: {e}")
+
